@@ -1,0 +1,1058 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>수행평가 점수 검산기</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --bg:#F4F5F6; --surface:#FFFFFF; --surface-2:#FBFBFC;
+    --ink:#15202B; --muted:#5C6A78; --faint:#8A97A4;
+    --line:#E6EAEE; --line-strong:#D2D9DF;
+    --brand:#125663; --brand-deep:#0B3A44; --brand-tint:#E6F0F1;
+    --bad:#BE3A2C; --bad-bg:#FBEBE9; --bad-line:#EFC7C1;
+    --ok:#1C7B55; --ok-bg:#EAF5EF; --ok-line:#C8E6D7;
+    --warn:#94600F; --warn-bg:#FBF1DD; --warn-line:#EBD8B0;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+    --sans:"Pretendard Variable",Pretendard,-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",sans-serif;
+    --radius:14px; --shadow:0 1px 2px rgba(20,32,43,.05),0 8px 24px -16px rgba(20,32,43,.18);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    background:var(--bg); color:var(--ink); font-family:var(--sans);
+    font-size:15px; line-height:1.55; -webkit-font-smoothing:antialiased;
+    text-rendering:optimizeLegibility;
+    padding:32px 20px 80px;
+  }
+  .wrap{max-width:940px;margin:0 auto}
+
+  /* ---------- Header ---------- */
+  header.app{margin-bottom:26px}
+  .eyebrow{
+    font-family:var(--mono); font-size:11.5px; letter-spacing:.16em;
+    text-transform:uppercase; color:var(--brand); font-weight:600;
+    display:flex; align-items:center; gap:9px;
+  }
+  .eyebrow::before{content:"";width:22px;height:1.5px;background:var(--brand);display:inline-block}
+  h1.title{
+    font-size:30px; font-weight:800; letter-spacing:-.02em; margin:11px 0 8px;
+    line-height:1.12;
+  }
+  .lede{color:var(--muted); font-size:15px; max-width:64ch; margin:0}
+  .privacy{
+    display:inline-flex; align-items:center; gap:7px; margin-top:15px;
+    background:var(--surface); border:1px solid var(--line); border-radius:999px;
+    padding:6px 13px 6px 11px; font-size:12.5px; color:var(--muted); font-weight:500;
+  }
+  .privacy svg{flex:none}
+  .privacy b{color:var(--ink); font-weight:600}
+
+  /* ---------- Panels ---------- */
+  .panel{
+    background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+    box-shadow:var(--shadow); margin-bottom:18px; overflow:hidden;
+  }
+  .panel-pad{padding:18px 20px}
+
+  /* DB status */
+  .db-row{display:flex; align-items:center; gap:16px; flex-wrap:wrap}
+  .db-head{display:flex;align-items:center;gap:10px;min-width:0}
+  .db-dot{width:9px;height:9px;border-radius:50%;background:var(--ok);flex:none;box-shadow:0 0 0 4px var(--ok-bg)}
+  .db-title{font-weight:700;font-size:14px}
+  .db-sub{color:var(--faint);font-size:12.5px;font-family:var(--mono)}
+  .db-stats{display:flex;gap:22px;margin-left:auto}
+  .stat{display:flex;flex-direction:column;line-height:1.1}
+  .stat .n{font-size:20px;font-weight:800;font-variant-numeric:tabular-nums}
+  .stat .l{font-size:11px;color:var(--muted);letter-spacing:.02em}
+
+  /* Buttons */
+  button{font-family:inherit;cursor:pointer}
+  .btn{
+    border:1px solid var(--line-strong); background:var(--surface); color:var(--ink);
+    border-radius:9px; padding:7px 13px; font-size:13px; font-weight:600;
+    display:inline-flex; align-items:center; gap:7px; transition:.13s ease;
+  }
+  .btn:hover{border-color:var(--brand);color:var(--brand);background:var(--brand-tint)}
+  .btn:active{transform:translateY(1px)}
+  .btn.ghost{border-color:transparent;background:transparent;color:var(--muted);padding:6px 8px}
+  .btn.ghost:hover{color:var(--brand);background:var(--brand-tint)}
+  .btn svg{flex:none}
+  button:focus-visible,[tabindex]:focus-visible,.drop:focus-visible{outline:2.5px solid var(--brand);outline-offset:2px}
+
+  /* Dropzone */
+  .drop{
+    border:1.5px dashed var(--line-strong); border-radius:16px; background:var(--surface);
+    padding:34px 24px; text-align:center; transition:.15s ease; cursor:pointer; display:block;
+  }
+  .drop:hover{border-color:var(--brand);background:var(--brand-tint)}
+  .drop.over{border-color:var(--brand);background:var(--brand-tint);transform:scale(.995)}
+  .drop .ico{width:42px;height:42px;margin:0 auto 12px;color:var(--brand);
+    background:var(--brand-tint);border-radius:12px;display:grid;place-items:center}
+  .drop h3{margin:0 0 5px;font-size:16px;font-weight:700}
+  .drop p{margin:0;color:var(--muted);font-size:13px}
+  .drop .formats{margin-top:11px;font-family:var(--mono);font-size:11px;color:var(--faint)}
+
+  /* ---------- Results ---------- */
+  #results{margin-top:8px}
+  .res{margin-top:18px;border-left:4px solid var(--line-strong)}
+  .res.has-bad{border-left-color:var(--bad)}
+  .res.clean{border-left-color:var(--ok)}
+  .res.attn{border-left-color:var(--warn)}
+  .res-top{padding:16px 20px 14px;border-bottom:1px solid var(--line)}
+  .res-file{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .fname{font-weight:700;font-size:15px;word-break:break-all}
+  .chip{font-size:11.5px;font-weight:600;padding:3px 9px;border-radius:999px;border:1px solid var(--line);background:var(--surface-2);color:var(--muted);white-space:nowrap}
+  .chip.brand{background:var(--brand-tint);border-color:transparent;color:var(--brand-deep)}
+  .chip.bad{background:var(--bad-bg);border-color:var(--bad-line);color:var(--bad)}
+  .chip.ok{background:var(--ok-bg);border-color:var(--ok-line);color:var(--ok)}
+  .chip.warn{background:var(--warn-bg);border-color:var(--warn-line);color:var(--warn)}
+  .res-meta{margin-top:9px;color:var(--muted);font-size:12.5px;display:flex;gap:7px;flex-wrap:wrap;align-items:center}
+  .res-meta .sep{color:var(--line-strong)}
+  .res-meta code{font-family:var(--mono);background:var(--surface-2);border:1px solid var(--line);border-radius:5px;padding:1px 6px;color:var(--ink);font-size:11.5px}
+
+  .counts{display:flex;gap:8px;flex-wrap:wrap;padding:13px 20px;background:var(--surface-2);border-bottom:1px solid var(--line)}
+  .ct{display:flex;align-items:baseline;gap:6px;padding:5px 11px;border-radius:9px;background:var(--surface);border:1px solid var(--line)}
+  .ct .n{font-weight:800;font-size:15px;font-variant-numeric:tabular-nums}
+  .ct .l{font-size:12px;color:var(--muted)}
+  .ct.bad{background:var(--bad-bg);border-color:var(--bad-line)} .ct.bad .n{color:var(--bad)}
+  .ct.ok{background:var(--ok-bg);border-color:var(--ok-line)} .ct.ok .n{color:var(--ok)}
+  .ct.warn{background:var(--warn-bg);border-color:var(--warn-line)} .ct.warn .n{color:var(--warn)}
+
+  .section{padding:6px 20px 18px}
+  .section h4{font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin:16px 0 9px;font-weight:700}
+  .section h4 .badge{margin-left:7px;color:var(--bad)}
+
+  /* tables */
+  .tscroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  thead th{
+    text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--faint);
+    font-weight:700;padding:0 12px 8px;border-bottom:1px solid var(--line);white-space:nowrap;
+  }
+  tbody td{padding:11px 12px;border-bottom:1px solid var(--line);vertical-align:middle}
+  tbody tr:last-child td{border-bottom:none}
+  .num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+  .who .nm{font-weight:600}
+  .who .bb{font-family:var(--mono);font-size:11.5px;color:var(--faint)}
+  .pa-cell{color:var(--ink)}
+  .rec{font-family:var(--mono);font-weight:800;font-size:16px;font-variant-numeric:tabular-nums}
+  .rec.bad{color:var(--bad)}
+  .flag-tag{display:inline-block;font-size:10.5px;font-weight:700;margin-left:7px;padding:1px 6px;border-radius:5px;background:var(--bad-bg);color:var(--bad);vertical-align:middle}
+  tr.badrow{background:var(--bad-bg)}
+  tr.badrow td{border-bottom-color:var(--bad-line)}
+
+  /* possible-score cell */
+  .poss{min-width:230px}
+  .poss .near{font-size:12px;color:var(--muted);margin-top:4px}
+  .poss .near b{color:var(--ink);font-family:var(--mono);font-weight:700}
+  .poss .rng{font-family:var(--mono);font-size:11.5px;color:var(--faint)}
+  svg.spec{display:block;margin:2px 0 1px;overflow:visible}
+
+  /* status dot for full roster */
+  .dot{display:inline-block;width:8px;height:8px;border-radius:50%;vertical-align:middle;margin-right:7px}
+  .dot.ok{background:var(--ok)} .dot.bad{background:var(--bad)} .dot.absent{background:var(--line-strong)} .dot.unv{background:var(--warn)}
+
+  details.full{margin-top:6px;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  details.full>summary{
+    list-style:none;cursor:pointer;padding:11px 15px;font-size:13px;font-weight:600;color:var(--muted);
+    display:flex;align-items:center;gap:8px;background:var(--surface-2);user-select:none;
+  }
+  details.full>summary::-webkit-details-marker{display:none}
+  details.full>summary .tw{transition:.15s;color:var(--faint)}
+  details.full[open]>summary .tw{transform:rotate(90deg)}
+  details.full .inner{padding:6px 16px 14px;max-height:420px;overflow:auto}
+
+  .note{font-size:12.5px;color:var(--muted);background:var(--surface-2);border:1px solid var(--line);border-radius:9px;padding:10px 13px;margin-top:9px;display:flex;gap:9px}
+  .note.warn{background:var(--warn-bg);border-color:var(--warn-line);color:#6b4708}
+  .note svg{flex:none;margin-top:1px}
+
+  .toolbar{display:flex;gap:9px;align-items:center;margin:14px 0 2px;flex-wrap:wrap}
+  .toolbar .grow{flex:1}
+
+  /* DB browser */
+  .dbview td{font-size:13px}
+  .dbview .pa{color:var(--muted)}
+  .dbview .rg{font-family:var(--mono);font-size:12px;color:var(--brand-deep)}
+
+  footer{margin-top:40px;color:var(--faint);font-size:12px;text-align:center;line-height:1.7}
+  footer code{font-family:var(--mono)}
+  a{color:var(--brand);text-decoration:none}
+  a:hover{text-decoration:underline}
+  .hide{display:none!important}
+  .empty{color:var(--faint);font-size:13px;padding:8px 0}
+
+  /* tabs */
+  .tabs{display:inline-flex;gap:4px;background:var(--surface);border:1px solid var(--line);border-radius:11px;padding:4px;margin-bottom:18px;box-shadow:var(--shadow)}
+  .tab{border:none;background:transparent;color:var(--muted);font-weight:600;font-size:13.5px;padding:8px 15px;border-radius:8px;display:inline-flex;align-items:center;gap:7px;transition:.13s}
+  .tab:hover{color:var(--ink);background:var(--surface-2)}
+  .tab.active{background:var(--brand);color:#fff}
+  .tab.active:hover{background:var(--brand-deep)}
+  .tab svg{flex:none}
+  .tab-badge{background:var(--bad);color:#fff;font-size:11px;font-weight:700;border-radius:999px;padding:1px 7px;min-width:18px;text-align:center}
+  .tab.active .tab-badge{background:rgba(255,255,255,.28)}
+
+  /* inputs */
+  .ipt{font-family:inherit;font-size:14px;padding:8px 12px;border:1px solid var(--line-strong);border-radius:9px;background:var(--surface);color:var(--ink);width:100%}
+  .ipt:focus{outline:2.5px solid var(--brand);outline-offset:1px;border-color:var(--brand)}
+
+  /* admin */
+  .section-card{margin-bottom:18px}
+  .sec-h{font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin:0 0 12px;font-weight:700}
+  .adm-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:12px}
+  .adm-stat{border:1px solid var(--line);border-radius:11px;padding:13px 15px;background:var(--surface-2)}
+  .adm-stat .n{font-size:26px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.05}
+  .adm-stat .l{font-size:12px;color:var(--muted);margin-top:3px}
+  .adm-stat.ok .n{color:var(--ok)} .adm-stat.bad .n{color:var(--bad)} .adm-stat.warn .n{color:var(--warn)} .adm-stat.brand .n{color:var(--brand)}
+  .res-pill{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:700;padding:3px 9px;border-radius:999px}
+  .res-pill.ok{background:var(--ok-bg);color:var(--ok)} .res-pill.bad{background:var(--bad-bg);color:var(--bad)} .res-pill.warn{background:var(--warn-bg);color:var(--warn)}
+  .sync-dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-left:6px;vertical-align:middle}
+  .sync-dot.on{background:var(--ok)} .sync-dot.off{background:var(--line-strong)} .sync-dot.err{background:var(--bad)}
+  #logBanner:not(:empty){padding:0 20px 14px}
+
+  @media (max-width:640px){
+    body{padding:22px 14px 60px}
+    h1.title{font-size:25px}
+    .db-stats{margin-left:0;width:100%;gap:26px}
+    .poss{min-width:200px}
+  }
+  @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="app">
+    <div class="eyebrow">성적 검산 도구</div>
+    <h1 class="title">수행평가 점수 검산기</h1>
+    <p class="lede">일람표를 올리면, 배점 기준에 등록된 평가요소 조합으로는 <b>만들 수 없는 점수</b>를 찾아 표시합니다.
+      입력 실수·전산 오류로 들어간 불가능한 점수를 제출 전에 걸러내는 용도입니다.</p>
+    <span class="privacy" id="privacyBadge">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      <span id="privacyText"><b>브라우저 안에서만</b>&nbsp;검사합니다 · 어떤 데이터도 서버로 전송·저장하지 않습니다</span>
+    </span>
+  </header>
+
+  <!-- Tabs -->
+  <div class="tabs" role="tablist">
+    <button class="tab active" id="tabVerifyBtn" role="tab" aria-selected="true">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+      점수 검산
+    </button>
+    <button class="tab" id="tabAdminBtn" role="tab" aria-selected="false">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 14l3-3 3 3 4-5"/></svg>
+      관리자 기록
+      <span class="tab-badge hide" id="tabAdminCount">0</span>
+    </button>
+  </div>
+
+  <div id="tab-verify">
+
+  <!-- DB status -->
+  <div class="panel">
+    <div class="panel-pad db-row">
+      <div class="db-head">
+        <span class="db-dot"></span>
+        <div>
+          <div class="db-title">배점 기준 (채점 루브릭)</div>
+          <div class="db-sub" id="dbSource">내장 데이터</div>
+        </div>
+      </div>
+      <div class="db-stats">
+        <div class="stat"><span class="n" id="dbSubjN">–</span><span class="l">과목</span></div>
+        <div class="stat"><span class="n" id="dbPaN">–</span><span class="l">수행평가</span></div>
+      </div>
+    </div>
+    <div class="panel-pad" style="border-top:1px solid var(--line);padding-top:13px;padding-bottom:13px">
+      <div class="toolbar" style="margin:0">
+        <button class="btn ghost" id="toggleDb">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+          <span id="toggleDbLbl">등록된 배점 기준 보기</span>
+        </button>
+        <span class="grow"></span>
+        <button class="btn" id="replaceDbBtn">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg>
+          배점 기준 파일 교체
+        </button>
+        <input type="file" id="dbFile" accept=".xlsx,.xls,.csv" class="hide">
+      </div>
+      <div id="dbView" class="hide" style="margin-top:12px"></div>
+    </div>
+  </div>
+
+  <!-- Dropzone -->
+  <div class="drop" id="drop" tabindex="0" role="button" aria-label="일람표 파일 올리기">
+    <div class="ico">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+    </div>
+    <h3>일람표 파일을 여기에 끌어다 놓으세요</h3>
+    <p>또는 눌러서 선택 · 여러 개를 한 번에 올릴 수 있어요</p>
+    <div class="formats">교과목별 일람표 · 강의실별 일람표 (.xlsx)</div>
+    <input type="file" id="fileInput" accept=".xlsx,.xls" multiple class="hide">
+  </div>
+
+  <div class="toolbar hide" id="globalBar">
+    <span class="chip" id="globalSummary"></span>
+    <span class="grow"></span>
+    <button class="btn ghost" id="clearBtn">전체 지우기</button>
+    <button class="btn" id="exportBtn">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+      이상 항목 CSV 내려받기
+    </button>
+  </div>
+
+  <div id="results"></div>
+  </div><!-- /tab-verify -->
+
+  <!-- Admin tab -->
+  <div id="tab-admin" class="hide">
+    <!-- passcode gate (optional) -->
+    <div class="panel" id="adminGate" style="display:none">
+      <div class="panel-pad">
+        <div class="db-title" style="margin-bottom:8px">관리자 확인</div>
+        <p class="lede" style="font-size:13.5px;margin:0 0 11px">관리자 암호를 입력하면 활용 기록을 볼 수 있습니다.</p>
+        <div class="toolbar" style="margin:0">
+          <input type="password" id="adminPass" class="ipt" placeholder="관리자 암호" autocomplete="off" style="max-width:240px">
+          <button class="btn" id="adminUnlock">확인</button>
+          <span id="adminGateMsg" style="color:var(--bad);font-size:12.5px"></span>
+        </div>
+      </div>
+    </div>
+
+    <div id="adminBody">
+      <!-- status / mode -->
+      <div class="panel">
+        <div class="panel-pad db-row">
+          <div class="db-head">
+            <span class="db-dot" id="logDot"></span>
+            <div>
+              <div class="db-title">활용 기록 (검증 로그)</div>
+              <div class="db-sub" id="logMode">세션 데모 모드</div>
+            </div>
+          </div>
+          <div class="toolbar" style="margin-left:auto">
+            <button class="btn ghost" id="logRefreshBtn" title="백엔드에서 최신 기록을 불러옵니다">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg>
+              새로고침
+            </button>
+            <button class="btn ghost" id="logExportBtn">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+              CSV
+            </button>
+          </div>
+        </div>
+        <div id="logBanner"></div>
+      </div>
+
+      <!-- summary -->
+      <div class="panel"><div class="panel-pad">
+        <div class="adm-stats" id="logSummary"></div>
+      </div></div>
+
+      <!-- by subject -->
+      <div class="section-card panel"><div class="panel-pad">
+        <h4 class="sec-h">과목별 집계</h4>
+        <div id="logBySubject"></div>
+      </div></div>
+
+      <!-- recent records -->
+      <div class="section-card panel"><div class="panel-pad">
+        <h4 class="sec-h">최근 검증 기록</h4>
+        <div id="logRecords"></div>
+      </div></div>
+    </div>
+  </div>
+
+  <footer>
+    수행평가 점수 검산기 · 클라이언트 사이드 · 데이터 저장 없음<br>
+    검산 기준: 각 수행평가의 점수는 평가요소별 배점 단계를 하나씩 골라 더한 값(조합) 중 하나여야 합니다.
+  </footer>
+</div>
+
+<script>
+/* ============================================================
+   Embedded scoring DB (rubric). Long format:
+   subjects[과목명][수행평가명][평가요소] = [valid scores...]
+   ============================================================ */
+const EMBEDDED_DB = {"version":"2026-06-15","source":"과목별_수행평가_평가요소_배점.xlsx","subjects":{"조세제도의 이해와 실제(2022)":{"예산안 국회 시정 연설 발표하기(100점)":{"사회적 과제의 진단(30점)":[30,20,10],"진단과 예산안의 연계(40점)":[40,30,20],"연설의 논리성(30점)":[30,25,20]},"일상 속 세금 탐구 보고서(100점)":{"주제 선정(30점)":[30,25,20],"세금 구조 분석(40점)":[20,15,10],"가치 평가(30점)":[15,10,5]},"세제 개편 제안서 발표(100점)":{"주제 선정(25점)":[25,20,15],"문제 분석(30점)":[30,25,20],"대안 마련(30점)":[30,25,20],"논리성(15점)":[15,10,5]}},"한문(2022)":{"한자어휘 포트폴리오(100점)":{"어휘의 파생(30점)":[30,26,22,18,14],"축자 풀이(30점)":[30,26,22,18,14],"단어의 의미(20점)":[20,18,16,14,12],"단어의 활용(20점)":[20,18,16,14,12]},"한문 고전 비평(100점)":{"고전 풀이(30점)":[30,27,24,21,18,15,12,9],"핵심 어휘(20점)":[20,17,14,11],"핵심 문장(10점)":[10,7,4],"주제 설명(10점)":[10,7,4],"현대적 가치 비평(20점)":[20,17,14,11],"논리성(10점)":[10,7,4]},"한시 감상 프로젝트(100점)":{"한시 풀이(30점)":[30,27,24,21,18,15,12,9],"시어 알기(20점)":[20,17,14,11],"시구 특징(10점)":[10,7,4],"주제 설명(10점)":[10,7,4],"시안 파악(20점)":[20,17,14,11],"배경지식(10점)":[10,7,4]}},"세계문화와 영어(2022)":{"문화 탐구 보고서(100점)":{"자신의 경험을 바탕으로 글쓰기(25점)":[25,20,15],"자신의 생각 표현하기(25점)":[25,20,15],"논리적으로 글쓰기(25점)":[25,20,15],"바르게 표현하기(25점)":[25,20,15]},"모둠 토론(100점)":{"의사소통 전략 활용(50점)":[10,9,8,7,6],"논리적 의견 제시 능력(50점)":[10,9,8,7,6]},"탐구 주제 발표(100점)":{"영어 표현 및 전달력(25점)":[25,20,15],"자신의 의견 표현 능력(25점)":[25,20,15],"내용 구성 및 논리성(25점)":[25,20,15],"발표 태도 및 참여도(25점)":[25,20,15]}},"정보 과제 연구(2022)":{"주제 탐색(100점)":{"주제 선정(20점)":[20,15,10],"연구 필요성 제시(20점)":[20,15,10],"참고문헌 수집(20점)":[20,15,10],"참고문헌 분석(20점)":[20,15,10],"연구 요소 제시(20점)":[20,15,10]},"연구 계획서 작성(100점)":{"주제 선정(20점)":[20,15,10],"연구 타당성(20점)":[20,15,10],"연구 방법(20점)":[20,15,10],"참고 문헌 분석(20점)":[20,15,10],"연구 수행 요소(20점)":[20,15,10]},"탐구 스피치(100점)":{"주제 선정(20점)":[20,15,10],"연구 타당성(20점)":[20,15,10],"연구 방법(20점)":[20,15,10],"연구 성과(20점)":[20,15,10],"연구 수행 요소(20점)":[20,18,16,14,12,10]}},"퍼블릭 스피킹과 프리젠테이션(2022)":{"이야기 연설(Narrative Speech)(100점)":{"영어 표현 및 전달력(25점)":[25,20,15],"의견 표현 능력(25점)":[25,20,15],"내용 구성 및 논리성(25점)":[25,20,15],"자료 활용 및 발표 준비(25점)":[25,20,15]},"정보 전달 연설(Informative Speech)(100점)":{"내용 구성(25점)":[25,20,15],"내용 타당성(25점)":[25,20,15],"자료 활용 및 시각적 구성(25점)":[25,20,15],"발표 전달력(25점)":[25,20,15]},"설득 연설(Persuasive Speech)(100점)":{"주장 명확성(25점)":[25,20,15],"근거 및 자료 활용(25점)":[25,20,15],"논리성(25점)":[25,20,15],"전달력 및 표현(25점)":[25,20,15]}},"미술사(2022)":{"근대 미술(100점)":{"포트폴리오(20점)":[20,15,10],"시대적 배경 이해도(20점)":[20,15,10],"작품과의 연결성(20점)":[20,15,10],"미술사조 이해(20점)":[20,15,10],"바르게 표현하기(20점)":[20,10]},"디자인 분석(100점)":{"포트폴리오(20점)":[20,15,10],"작품 관찰 능력(20점)":[20,15,10],"디자인 이해 능력(20점)":[20,15,10],"현대적 재해석 능력(20점)":[20,15,10],"바르게 표현하기(20점)":[20,10]},"비평문 작성(100점)":{"포트폴리오(25점)":[25,20,15],"체계적 구성력(25점)":[25,20,15],"작가 탐색 능력(25점)":[25,20,15],"논리적으로 글쓰기(25점)":[25,20,15]}},"스포츠 경기 분석(2022)":{"경기 이해 및 기초 분석 능력(100점)":{"경기 규칙 및 경기 흐름 이해(30점)":[30,20,10],"분석 요소 도출의 적절성(40점)":[40,30,20],"발표의 논리성 및 용어 사용(30점)":[30,20,10]},"경기 분석 기반 전략 설계 능력(100점)":{"자료 수집 및 분석의 충실성(30점)":[30,20,10],"분석 결과와 전략 설계의 연계성(40점)":[40,30,20],"포트폴리오 구성의 체계성 및 성찰(30점)":[30,20,10]},"경기 수행 및 전략 활용 능력(100점)":{"경기 상황 판단 및 전략 적용(40점)":[40,30,20],"팀 협력 및 의사소통(30점)":[30,20,10],"경기 후 피드백 및 전략 수정(30점)":[30,20,10]}},"스포츠 생리의학(2022)":{"스포츠 종목별 생리학적 분석(100점)":{"에너지 시스템 분석(40점)":[40,30,20],"근섬유 및 설명(30점)":[30,20,10],"피로 원인 기전(30점)":[30,20,10]},"나의 몸 최적화 프로젝트(100점)":{"신체 데이터 분석(40점)":[40,30,20],"운동 처방의 적절성(30점)":[30,20,10],"생리학적 기대 효과(30점)":[30,20,10]},"나의 스포츠 과학 성장 로그(100점)":{"누적 및 성실성(40점)":[40,30,20,10],"과학적 분석의 깊이(30점)":[30,20,10],"태도 변화 및 생활(30점)":[30,20,10]}},"음악 이론(2022)":{"음정과 조성(100점)":{"악상기호(10점)":[10,5],"장·단조(10점)":[10,5],"조성A(15점)":[15],"조성A(10점)":[10],"조성B(15점)":[15],"조성B(10점)":[10],"음계(20점)":[20,15,10],"3화음(30점)":[30,25,20,15,10]},"한도막 형식 작곡(100점)":{"한도막 형식(40점)":[40,37,34,31,28,25,22,19,16],"화음(40점)":[40,37,34,31,28,25,22,19,16],"창의적 능력(20점)":[20,17,14,11]},"악기론(100점)":{"악기의 역사, 문화적 특징(20점)":[20,15,10],"악기의 음악적 특징(20점)":[20,15,10],"악기의 대표 악곡 감상(20점)":[20,15,10],"악기의 특징 응용(20점)":[20,15,10],"감상 태도 평가(20점)":[20,15,10]}},"미적분(2015)":{"미적분 문제해결(100점_서술형)":{"문제해결력·의사소통능력·논리적 표현·논리적 추론(100점)":[100,90,80,70,60,50]},"미적분으로 진로 탐색(100점)":{"주제 선정 및 수학적 요소 분석 및 활용(40점)":[40,35,30,25,20],"자신의 의견을 미적분의 요소를 활용하여 논리적으로 설명하기(40점)":[40,35,30,25,20],"활용된 미적분의 개념 정리하기(20점)":[20,15,10]}},"프랑스어(2022)":{"가족 소개 작문(100점)":{"소유형용사를 정확하게 사용하기(20점)":[20,10],"직업·나이·외모·성격을 나타내는 표현하기(40점)":[40,30,20,10],"도입·본문·맺음 표현 쓰기(20점)":[20,15,10],"철자·철자 기호·문장 부호 어법에 맞게 쓰기(20점)":[20,15,10]},"프랑스문화 프레젠테이션(100점)":{"발표 내용(90점)":[90,80,70,60],"발표 과정(10점)":[10,8,6,4]}},"수학과제 탐구(2015)":{"수학적 모델링(100점)":{"선정한 사례의 의미와 필요성 제시하기(30점)":[30,20,10],"수학적 모델링 기법의 방법과 절차 준수하기(40점)":[40,30,20],"연구 윤리 준수하기(30점)":[30,20,10]},"나의 탐구 발자취(100점)":{"문헌연구(25점)":[25,20,15],"사례조사(25점)":[25,20,15],"수학실험(25점)":[25,20,15],"개별연구(25점)":[25,20,15]},"수학 탐구 발표(100점)":{"탐구 과정 및 연구 윤리 준수(30점)":[30,20,10],"산출물의 완성도(40점)":[40,30,20,10],"발표 및 의사소통(20점)":[20,15,10],"성찰 및 자기평가(10점)":[10,5]}},"인공지능 수학(2022)":{"인공지능 수학 퀴즈(100점)":{"개념 이해(100점)":[100,90,80,70,60,50,40]},"텍스트 자료 처리와 분류(100점)":{"텍스트 자료의 집합 표현(25점)":[25,20,15],"텍스트 자료의 벡터 표현(25점)":[25,20,15],"집합을 이용한 텍스트 분류(25점)":[25,20,15],"벡터를 이용한 텍스트 분류(25점)":[25,20,15]},"이미지 자료의 처리와 분류(100점)":{"이미지의 행렬 표현(30점)":[30,20,10],"행렬을 이용한 이미지 변환(40점)":[40,30,20],"이미지 유사도 비교(30점)":[30,20,10]},"선형 회귀 모델의 최적화 원리 탐구(100점)":{"데이터 시각화 및 추세선 도출(20점)":[20,15,10],"오차와 손실함수 계산(40점)":[40,30,20],"경사하강법 적용 및 최적화(40점)":[40,30,20]}},"정보과학(2015)":{"문제 해결(100점)":{"학습한 프로그래밍 개념을 바탕으로 문제 해결 사이트 문항의 해법을 자기주도적으로 설계 및 구현하기(100점)":[100,90,80,70,60,50,40]},"코드 리뷰(100점)":{"개념 이해(20점)":[20,15,10],"컴파일(20점)":[20,15,10],"입출력 설계(20점)":[20,15,10],"코드 해석(20점)":[20,15,10],"연구 윤리(10점)":[10,5,0],"실생활 적용(10점)":[10,5,0]},"교과 연계 프로젝트(100점)":{"주제선정(20점)":[20,15,10],"입출력 설계(20점)":[20,15,10],"컴파일(20점)":[20,15,10],"연구원리(20점)":[20,15,10],"알고리즘 분석(20점)":[20,15,10]}},"경제수학(2015)":{"수요함수와 공급함수 만들기(서술형 100점)":{"상황 분석 및 함수 구성(30점)":[30,25,20],"함수의 그래프 나타내기(30점)":[30,25,20],"수학적으로 해석하기(20점)":[20,15,10],"자신의 최종 견해 작성하기(20점)":[20,15,10]},"한계효용과 미분(서술형 100점)":{"한계효용의 의미 설명하기(20점)":[20,15,10],"한계효용 그래프 분석하기(20점)":[20,15,10],"경제지표 분석하기(30점)":[30,25,20],"한계의 변화와 미분간의 관계 설명하기(30점)":[30,25,20]},"수학으로 경제현상 모델링(100점)":{"경제 상황이나 현상을 수학적으로 분석하기(40점)":[40,35,30,25,20],"전망이나 개선 방향을 논리적으로 설명하기(40점)":[40,35,30,25,20],"경제 지표, 수학적 개념 정리하기(20점)":[20,15,10]}},"고급 물리학(2015)":{"개념 맵핑 및 발표(100점)":{"개념 맵핑(90점)":[9,8,7,6,5],"발표(10점)":[10,9,8,7,6,5]},"진로 연계 탐구(100점)":{"주제 선정(25점)":[25,20,15],"진로 연관성(25점)":[25,20,15],"자료 수집(25점)":[25,20,15],"탐구 적용(25점)":[25,20,15]}},"고급 생명과학(2015)":{"유기화합물 특성 탐구(100점)":{"탐구 원리(25점)":[25,20,15,10],"자료 변환 및 해석(25점)":[25,20,15,10],"결과 분석 및 결론 도출(25점)":[25,20,15,10],"적용(25점)":[25,20,15,10]},"개념 맵핑 및 발표(100점)":{"개념 맵핑(90점)":[9,8,7,6,5],"발표(10점)":[10,9,8,7,6,5]}},"고급 수학Ⅰ(2015)":{"고급 수학으로 접속하는 전공의 세계(100점)":{"교과 내용의 전공 확장성 조사하기(20점)":[20,15,10],"전공 문제 해결 모델링 역량(30점)":[30,20,10],"수학 원리의 심층 이해 및 수식화(30점)":[30,20,10],"발표의 명확성 및 전달력(20점)":[20,15,10]},"문제 해결 프로세스(100점_서술형)":{"벡터의 연산(10점)":[10,5],"벡터 문제해결 역량(15점)":[15,10,5],"행렬과 선형변환의 연산(10점)":[10,5],"행렬과 선형변환 문제해결 역량(15점)":[15,10,5],"복소수와 극좌표의 연산(10점)":[10,5],"복소수와 극좌표 문제해결 역량(15점)":[15,10,5],"그래프의 연산(10점)":[10,5],"그래프 문제해결 역량(15점)":[15,10,5]}},"고급 화학(2015)":{"개념 맵핑 및 발표(100점)":{"개념 맵핑(90점)":[9,8,7,6,5],"발표(10점)":[10,9,8,7,6,5]},"분자 구조와 오비탈 모델링(100점)":{"오비탈 모델링 및 원리 설명(40점)":[40,32,24],"구조 분석 및 반응성 추론(30점)":[30,26,22],"논리적 구술 및 질의응답(20점)":[20,16,12],"준비성 및 태도(10점)":[10,8,6]},"생활 속 화학 탐구 프로젝트(100점)":{"주제 탐구목표(15점)":[15,10],"탐구 방법(15점)":[15,10],"탐구내용 및 방법(10점)":[10],"탐구내용 및 방법(5점)":[5],"화학 개념 이해 및 적용(15점)":[15,10,5],"창의성 및 문제 해결력(15점)":[15,10,5],"완성도(10점)":[10,5],"시각자료(10점)":[10,5],"과학적 의사소통(10점)":[10,5]}},"과학과제 연구(2015)":{"연구 계획(100점)":{"연구 방법론 및 연구 윤리 준수(20점)":[20,15,10],"선행 연구 검토(20점)":[20,15,10],"연구 주제 선정(20점)":[20,15,10,5],"연구 계획 수립(40점)":[40,35,30,25,20]},"연구 과정(100점)":{"실험 수행 및 안전 준수(20점)":[20,15,10],"데이터 수집 및 기록 체계화(30점)":[30,25,20,15],"실험 오류 분석 및 해결(20점)":[20,15,10],"데이터 변환 및 정리(30점)":[30,25,20,15]},"최종 발표(100점)":{"자료 해석 및 결론 도출(30점)":[30,25,20,15],"포스터 구성 및 시각화(30점)":[30,25,20,15],"발표 전달력 및 질의 응답(20점)":[20,15,10],"연구 윤리 및 책임(20점)":[20,15,10]}},"생명과학 실험(2015)":{"현미경 관찰(100점)":{"현미경 관찰(50점)":[50,45,40,35,30,25],"식물 세포와 동물 세포 구조 비교 분석(50점)":[50,45,40,35,30,25]},"세포 호흡 관찰(100점)":{"가설 설정(25점)":[25,20,15,10],"실험 설계(25점)":[25,20,15,10],"결과 수집 및 해석(25점)":[25,20,15,10],"결론 도출 및 일반화(25점)":[25,20,15,10]},"핵형 분석(100점)":{"사람 염색체 핵형 분석 형태 만들기(25점)":[25,20,15,10],"염색체 수, 구성, 핵상 해석(25점)":[25,20,15,10],"성별 판정(25점)":[25,20,15,10],"염색체 돌연변이 유무 판정(25점)":[25,20,15,10]}},"데이터과학과 머신러닝(2015)":{"산업 동향 탐색(100점)":{"데이터 과학 탐색하기(20점)":[20,15,10],"최신 기술·이슈 글쓰기(20점)":[20,15,10],"본인의 견해 서술하기(20점)":[20,15,10],"논리적 글쓰기(20점)":[20,15,10],"출처 표기하기(20점)":[20,10]},"코드 리뷰(100점)":{"코드 해석(100점)":[100,95,90,85,80,75,70,65,60,55,50]},"데이터과학 프로젝트(100점)":{"주제 적합성(20점)":[20,15,10],"데이터 수집(10점)":[10,5,0],"연구 윤리(10점)":[10,5,0],"알고리즘(20점)":[20,15,10],"의사결정(20점)":[20,15,10],"자동화(20점)":[20,15,10]}},"한문Ⅰ(2015)":{"성어 활용 글쓰기 탐구(100점)":{"성어의 이해(25점)":[25,20,15,10],"적용 및 연결(25점)":[25,20,15,10],"글쓰기 구조(20점)":[20,15,10],"역사 영역(성어의 유래 상황 및 맥락 이해)(15점)":[15,10],"사상 영역(가치 이해 및 사고 확장)(15점)":[15,10]},"한문 명언 이해 및 적용 발표(100점)":{"1차_득음 정확성(15점)":[15,10,5],"1차_문장 해석(15점)":[15,10,5],"1차_경험 연결(10점)":[10,5],"2차_득음 정확(20점)":[20,15,10],"2차_문장 해석(20점)":[20,15,10],"2차_글의 주제와 사상 설명(20점)":[20,15,10]},"고전 읽기를 통한 의미 탐구(100점)":{"독음의 정확성(25점)":[25,20,15,10],"해석의 정확성(25점)":[25,20,15,10],"해석 과정 설명(25점)":[25,20,15],"의미 이해 및 정리(25점)":[25,20,15]}},"국제 관계와 국제기구":{"세계를 바라보는 나의 렌즈 찾기(100점)":{"종합적 사고력(60점)":[60,50,40,30,20],"자신의 생각 표현하기(40점)":[40,35,30,25,20]},"국제관계 및 국제정치 관련 영화 발표(100점)":{"정보 검색 및 처리능력(30점)":[30,25,20,15,10],"논리적 구성능력(35점)":[35,30,25,20,15],"사회적 소통 능력(35점)":[35,30,25,20,15]},"국제 정치 탐색주제 에세이 작성(100점)":{"비판적 사고력(50점)":[10,8,6,4],"정보 활용 및 분석 능력(50점)":[10,8,6,4]}}}};
+
+/* ---------- core ---------- */
+let DB = EMBEDDED_DB;
+let INDEX = null;
+const loadedRosters = []; // {name, aoa}
+
+/* ============================================================
+   활용 기록(검증 로그) 설정
+   ------------------------------------------------------------
+   • endpoint 를 비워두면 → 이 브라우저 세션 안에서만 기록이 쌓이는 "데모 모드"
+   • GitHub Pages에 배포해 여러 사용자의 기록을 한 곳에 모으려면,
+     아래 endpoint 에 백엔드 주소(예: Google Apps Script 웹앱 URL)를 넣으세요.
+     백엔드 만드는 방법은 함께 제공된 README 를 참고하세요.
+   • 학생 이름·점수는 전송하지 않습니다. 과목명·결과·건수·시각만 보냅니다.
+   ============================================================ */
+const USAGE_LOG = {
+  endpoint: "",        // 예: "https://script.google.com/macros/s/AKfyc.../exec"
+  key: "",             // (선택) 관리자 조회 보호용 키 — 백엔드와 동일하게
+  adminPass: "",       // (선택) 관리자 탭 진입 암호 (간단 보호용). 비우면 바로 열림
+  logFilename: false   // true 면 파일명도 기록(개인정보 주의). 기본 false
+};
+let usageLog = [];     // 화면 표시용 누적 기록 (세션 + 백엔드에서 불러온 것)
+let adminUnlocked = false;
+
+function norm(s){ if(s===null||s===undefined) return ''; return String(s).replace(/\([^)]*\)/g,'').replace(/\s+/g,''); }
+
+function achievable(elements){
+  let reach = new Set([0]);
+  for(const vals of Object.values(elements)){
+    const next = new Set();
+    for(const r of reach) for(const v of vals) next.add(r+v);
+    reach = next;
+  }
+  return reach;
+}
+
+function buildIndex(db){
+  const assessments=[]; const bySubjPa=new Map(); const byPa=new Map();
+  for(const [subj,pas] of Object.entries(db.subjects||{})){
+    for(const [pa,els] of Object.entries(pas)){
+      const set=achievable(els);
+      const sorted=[...set].sort((a,b)=>a-b);
+      const a={subj,pa,normSubj:norm(subj),normPa:norm(pa),elements:els,
+               set, sorted, min:sorted[0], max:sorted[sorted.length-1], nEl:Object.keys(els).length};
+      assessments.push(a);
+      bySubjPa.set(a.normSubj+'\u0001'+a.normPa, a);
+      if(!byPa.has(a.normPa)) byPa.set(a.normPa,[]);
+      byPa.get(a.normPa).push(a);
+    }
+  }
+  return {db,assessments,bySubjPa,byPa,
+    nSubjects:Object.keys(db.subjects||{}).length, nAssessments:assessments.length};
+}
+
+function matchAssessment(normSubj, normPa){
+  if(!normPa) return {a:null, how:'none'};
+  let a = INDEX.bySubjPa.get(normSubj+'\u0001'+normPa);
+  if(a) return {a, how:'exact'};
+  const cands = INDEX.byPa.get(normPa)||[];
+  if(cands.length===1) return {a:cands[0], how:'name'};
+  if(cands.length>1){
+    const same = cands.filter(c=>c.normSubj===normSubj);
+    if(same.length===1) return {a:same[0], how:'exact'};
+    return {a:null, how:'ambiguous', cands};
+  }
+  return {a:null, how:'none'};
+}
+
+/* ---------- roster parsing ---------- */
+const SUMMARY_KEYS=['응시','총점','평균','학과','전체','성취','소계'];
+function isSummaryCol0(v){
+  const c=String(v===null||v===undefined?'':v).replace(/\s+/g,'');
+  return c!=='' && SUMMARY_KEYS.some(k=>c.includes(k));
+}
+
+function parseRoster(aoa){
+  // subject
+  let subjectRaw=null;
+  outer: for(const row of aoa){
+    for(const cell of row){
+      const c=String(cell===null||cell===undefined?'':cell);
+      if(c.includes('과목') && c.includes(':')){ subjectRaw=c.split(':').pop().trim(); break outer; }
+    }
+  }
+  const normSubj = norm(subjectRaw||'');
+  // header row (has 성명)
+  let hdr=-1, nameCol=-1;
+  for(let i=0;i<aoa.length;i++){
+    const j=aoa[i].findIndex(c=>String(c===null||c===undefined?'':c).trim()==='성명');
+    if(j>=0){ hdr=i; nameCol=j; break; }
+  }
+  if(hdr<0) return {error:"표의 머리글('성명' 열)을 찾지 못했어요. 일람표 형식이 맞는지 확인해 주세요."};
+  const header=aoa[hdr];
+  // 영역 (교과목별 single assessment)
+  let areaRaw=null;
+  for(let i=0;i<hdr;i++){
+    for(const cell of aoa[i]){
+      const c=String(cell===null||cell===undefined?'':cell).trim();
+      if(c.startsWith('영역') && !c.startsWith('영역만점') && c.includes(':')){ areaRaw=c.split(':').slice(1).join(':').trim(); }
+    }
+  }
+  // score columns
+  const cols=[]; const skipped=[];
+  for(let j=nameCol+1;j<header.length;j++){
+    const h=String(header[j]===null||header[j]===undefined?'':header[j]).trim();
+    if(!h) continue;
+    if(h.includes('만점')){
+      const m=h.match(/만점\s*([\d.]+)/);
+      cols.push({idx:j, normPa:norm(h), name:h.replace(/\(.*$/,'').trim()||h, raw:h, declaredMax:m?parseFloat(m[1]):null});
+    } else if(h==='점수'){
+      cols.push({idx:j, normPa:norm(areaRaw||''), name:(areaRaw||'점수'), raw:'점수', declaredMax:null, fromArea:true});
+    } else if(h.includes('합계')||h.replace(/\s+/g,'')==='합계'){ skipped.push(h); }
+    else if(h.includes('비고')||h.includes('결시')){ /* ignore */ }
+    else { skipped.push(h); }
+  }
+  const format = cols.some(c=>c.fromArea) ? '교과목별' : '강의실별';
+  // students
+  const students=[];
+  for(let i=hdr+1;i<aoa.length;i++){
+    const row=aoa[i];
+    if(isSummaryCol0(row[0])) break;
+    const name=String(row[nameCol]===null||row[nameCol]===undefined?'':row[nameCol]).trim();
+    if(!name) continue;
+    const banbun=String(row[0]===null||row[0]===undefined?'':row[0]).trim();
+    const sabun= nameCol-1>=0 ? String(row[nameCol-1]===null||row[nameCol-1]===undefined?'':row[nameCol-1]).trim() : '';
+    const scores=cols.map(c=>{
+      const raw=row[c.idx];
+      let value=null, kind='absent';
+      if(raw!==null && raw!==undefined && String(raw).trim()!==''){
+        const num=Number(raw);
+        if(Number.isFinite(num)){ value=num; kind='num'; }
+        else { value=String(raw).trim(); kind='text'; }
+      }
+      return {col:c, value, kind};
+    });
+    students.push({banbun,sabun,name,scores});
+  }
+  return {subjectRaw,normSubj,format,header,nameCol,cols,skipped,areaRaw,students,hdrRow:hdr};
+}
+
+/* ---------- validation ---------- */
+function validateRoster(p){
+  const colInfo = p.cols.map(c=>({col:c, match:matchAssessment(p.normSubj, c.normPa)}));
+  const rows=[];
+  const counts={ok:0,bad:0,absent:0,unverifiable:0};
+  for(const st of p.students){
+    st.scores.forEach((sc,k)=>{
+      const ci=colInfo[k]; const a=ci.match.a; let status;
+      if(sc.kind==='absent'||sc.kind==='text'){ status='absent'; counts.absent++; }
+      else if(!a){ status='unverifiable'; counts.unverifiable++; }
+      else if(a.set.has(sc.value)){ status='ok'; counts.ok++; }
+      else { status='bad'; counts.bad++; }
+      rows.push({st, col:sc.col, value:sc.value, kind:sc.kind, status, a, match:ci.match});
+    });
+  }
+  // subject matched at all?
+  const subjectKnown = (INDEX.assessments.some(a=>a.normSubj===p.normSubj));
+  return {colInfo, rows, counts, subjectKnown};
+}
+
+/* ---------- possible-score helpers ---------- */
+function nearest(sorted,v){
+  let best=sorted[0], bd=Math.abs(sorted[0]-v);
+  for(const x of sorted){ const d=Math.abs(x-v); if(d<bd){bd=d;best=x;} }
+  return best;
+}
+function describePossible(a){
+  const s=a.sorted;
+  if(s.length<=1) return `${s[0]}점만 가능`;
+  const d=s[1]-s[0]; let arith=true;
+  for(let i=2;i<s.length;i++){ if(s[i]-s[i-1]!==d){arith=false;break;} }
+  if(arith && s.length>4) return `${s[0]}부터 ${s[s.length-1]}까지 ${d}점 단위`;
+  if(s.length<=14) return s.join(' · ');
+  return `${s.slice(0,4).join(' · ')} … ${s[s.length-1]} (${s.length}종)`;
+}
+
+/* ---------- spectrum SVG (signature) ---------- */
+const SPEC={brand:'#125663',bad:'#BE3A2C',line:'#D2D9DF',faint:'#8A97A4',mono:'ui-monospace,Menlo,Consolas,monospace'};
+function spectrum(a, v){
+  const W=232, H=34, padX=10, top=15;
+  const lo=Math.min(a.min, v), hi=Math.max(a.max, v);
+  const span=(hi-lo)||1;
+  const x=val=> padX + (val-lo)/span * (W-2*padX);
+  let ticks='';
+  if(a.sorted.length<=30){
+    for(const t of a.sorted){
+      ticks+=`<line x1="${x(t).toFixed(1)}" y1="${top-5}" x2="${x(t).toFixed(1)}" y2="${top+5}" stroke="${SPEC.brand}" stroke-width="2" stroke-linecap="round" opacity="0.85"/>`;
+    }
+  }
+  const dense = a.sorted.length>30;
+  const marker=x(v);
+  return `<svg class="spec" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="가능한 점수 범위와 기록된 점수 위치">
+    <line x1="${padX}" y1="${top}" x2="${W-padX}" y2="${top}" stroke="${SPEC.line}" stroke-width="1.5"/>
+    <rect x="${x(a.min).toFixed(1)}" y="${top-2}" width="${Math.max(0,(x(a.max)-x(a.min))).toFixed(1)}" height="4" rx="2" fill="${SPEC.brand}" opacity="${dense?0.5:0.16}"/>
+    ${ticks}
+    <g>
+      <line x1="${marker.toFixed(1)}" y1="${top-9}" x2="${marker.toFixed(1)}" y2="${top+9}" stroke="${SPEC.bad}" stroke-width="2.5" stroke-linecap="round"/>
+      <circle cx="${marker.toFixed(1)}" cy="${top}" r="3.4" fill="${SPEC.bad}" stroke="#fff" stroke-width="1.4"/>
+      <text x="${marker.toFixed(1)}" y="${H-2}" text-anchor="middle" font-size="9.5" font-family="${SPEC.mono}" fill="${SPEC.bad}" font-weight="700">${fmtNum(v)}</text>
+    </g>
+    <text x="${x(a.min).toFixed(1)}" y="9" text-anchor="middle" font-size="8.5" font-family="${SPEC.mono}" fill="${SPEC.faint}">${a.min}</text>
+    <text x="${x(a.max).toFixed(1)}" y="9" text-anchor="middle" font-size="8.5" font-family="${SPEC.mono}" fill="${SPEC.faint}">${a.max}</text>
+  </svg>`;
+}
+
+/* ---------- rendering ---------- */
+const $=s=>document.querySelector(s);
+function esc(s){return String(s===null||s===undefined?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+function fmtNum(n){ return Number.isInteger(n)?String(n):String(n); }
+
+function refreshDbStatus(){
+  $('#dbSubjN').textContent=INDEX.nSubjects;
+  $('#dbPaN').textContent=INDEX.nAssessments;
+  $('#dbSource').textContent=(DB.source?DB.source:'업로드한 파일')+(DB.version?'  ·  '+DB.version:'');
+}
+
+function renderDbView(){
+  const rows=[...INDEX.assessments].sort((a,b)=> a.subj<b.subj?-1:a.subj>b.subj?1:(a.pa<b.pa?-1:1));
+  let bySub=new Map();
+  for(const a of rows){ if(!bySub.has(a.subj)) bySub.set(a.subj,[]); bySub.get(a.subj).push(a); }
+  let html='<div class="note"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg><div>아래는 검산에 사용하는 기준입니다. 각 수행평가 옆 범위는 <b>배점 조합으로 만들 수 있는 점수 구간</b>입니다.</div></div>';
+  html+='<details class="full" open><summary><svg class="tw" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>과목 '+INDEX.nSubjects+'개 · 수행평가 '+INDEX.nAssessments+'개</summary><div class="inner"><table class="dbview"><tbody>';
+  for(const [sub,list] of bySub){
+    html+=`<tr><td colspan="2" style="padding-top:13px"><b>${esc(sub)}</b></td></tr>`;
+    for(const a of list){
+      html+=`<tr><td class="pa" style="padding-left:14px">${esc(a.pa)} <span style="color:var(--faint);font-size:11px">· 평가요소 ${a.nEl}개</span></td><td class="rg" style="text-align:right;white-space:nowrap">${describePossible(a)}</td></tr>`;
+    }
+  }
+  html+='</tbody></table></div></details>';
+  $('#dbView').innerHTML=html;
+}
+
+function renderAll(){
+  const container=$('#results');
+  container.innerHTML='';
+  let totalBad=0, totalChecked=0, totalUnv=0;
+  for(const r of loadedRosters){
+    const card=renderRoster(r);
+    container.appendChild(card.el);
+    totalBad+=card.counts.bad; totalChecked+=card.counts.ok+card.counts.bad; totalUnv+=card.counts.unverifiable;
+  }
+  const bar=$('#globalBar');
+  if(loadedRosters.length===0){ bar.classList.add('hide'); return; }
+  bar.classList.remove('hide');
+  const gs=$('#globalSummary');
+  if(totalBad>0){ gs.className='chip bad'; gs.textContent=`파일 ${loadedRosters.length}개 · 불가능 점수 ${totalBad}건 발견`; }
+  else { gs.className='chip ok'; gs.textContent=`파일 ${loadedRosters.length}개 · 점검 ${totalChecked}건 모두 정상`+(totalUnv?` · 확인 필요 ${totalUnv}건`:''); }
+}
+
+function renderRoster(r){
+  const el=document.createElement('div');
+  el.className='panel res';
+  const p=parseRoster(r.aoa);
+  if(p.error){
+    el.classList.add('attn');
+    el.innerHTML=`<div class="res-top"><div class="res-file"><span class="fname">${esc(r.name)}</span><span class="chip warn">읽기 실패</span></div></div>
+      <div class="section"><div class="note warn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg><div>${esc(p.error)}</div></div></div>`;
+    return {el, counts:{ok:0,bad:0,absent:0,unverifiable:0}};
+  }
+  const v=validateRoster(p);
+  const c=v.counts;
+  const cls = c.bad>0 ? 'has-bad' : (c.unverifiable>0||!v.subjectKnown ? 'attn' : 'clean');
+  el.classList.add(cls);
+
+  const subjChip = v.subjectKnown
+    ? `<span class="chip brand">${esc(matchedSubjectName(p))}</span>`
+    : `<span class="chip warn">과목 미매칭: ${esc(p.subjectRaw||'?')}</span>`;
+
+  // top
+  let html=`<div class="res-top">
+    <div class="res-file">
+      <span class="fname">${esc(r.name)}</span>
+      <span class="chip">${p.format}</span>
+      ${subjChip}
+    </div>
+    <div class="res-meta">
+      <span>학생 ${p.students.length}명</span><span class="sep">·</span>
+      <span>수행평가 ${p.cols.length}개</span><span class="sep">·</span>
+      <span>점검 ${c.ok+c.bad}건</span>
+    </div>
+  </div>`;
+
+  // counts
+  html+=`<div class="counts">
+    ${c.bad>0?`<div class="ct bad"><span class="n">${c.bad}</span><span class="l">불가능 점수</span></div>`:''}
+    <div class="ct ok"><span class="n">${c.ok}</span><span class="l">정상</span></div>
+    ${c.unverifiable>0?`<div class="ct warn"><span class="n">${c.unverifiable}</span><span class="l">확인 필요</span></div>`:''}
+    ${c.absent>0?`<div class="ct"><span class="n">${c.absent}</span><span class="l">미응시·빈칸</span></div>`:''}
+  </div>`;
+
+  html+='<div class="section">';
+
+  // flagged table
+  const bad=v.rows.filter(x=>x.status==='bad');
+  if(bad.length){
+    html+=`<h4>불가능한 점수 <span class="badge">${bad.length}건</span></h4>`;
+    html+=`<div class="tscroll"><table><thead><tr><th>반/번호</th><th class="num">학번</th><th>성명</th><th>수행평가</th><th>기록된 점수</th><th>가능한 점수</th></tr></thead><tbody>`;
+    for(const x of bad){
+      const a=x.a; const near=nearest(a.sorted,x.value);
+      const dir = x.value<a.min?'↓ 최소 미만': x.value>a.max?'↑ 최대 초과':'단계 불일치';
+      html+=`<tr class="badrow">
+        <td class="num" style="color:var(--faint)">${esc(x.st.banbun)}</td>
+        <td class="num" style="color:var(--faint)">${esc(x.st.sabun)}</td>
+        <td class="who"><span class="nm">${esc(x.st.name)}</span></td>
+        <td class="pa-cell">${esc(x.col.name)}</td>
+        <td><span class="rec bad">${fmtNum(x.value)}</span><span class="flag-tag">${dir}</span></td>
+        <td class="poss">
+          ${spectrum(a,x.value)}
+          <div class="near">가장 가까운 가능 점수 <b>${near}</b> · <span class="rng">${describePossible(a)}</span></div>
+        </td>
+      </tr>`;
+    }
+    html+='</tbody></table></div>';
+  } else {
+    html+=`<div class="note"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#1C7B55" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><div>검증한 점수 중 배점 조합으로 만들 수 없는 점수는 없습니다.</div></div>`;
+  }
+
+  // warnings: unverifiable columns
+  const unvCols = v.colInfo.filter(ci=>!ci.match.a);
+  if(unvCols.length){
+    html+=`<h4>확인 필요</h4>`;
+    let lines='';
+    for(const ci of unvCols){
+      const why = ci.match.how==='ambiguous'
+        ? `여러 과목에 같은 이름의 수행평가가 있어 어떤 기준인지 특정할 수 없습니다`
+        : `배점 기준에서 해당 수행평가를 찾지 못했습니다`;
+      lines+=`<div style="margin-top:4px">· <b>${esc(ci.col.name)}</b> — ${why}.</div>`;
+    }
+    html+=`<div class="note warn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg><div>아래 항목은 검증하지 못했습니다. 배점 기준 파일에 등록돼 있는지, 이름이 일치하는지 확인해 주세요.${lines}</div></div>`;
+  }
+  if(!v.subjectKnown){
+    html+=`<div class="note warn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg><div>일람표의 과목명을 배점 기준에서 찾지 못해, 수행평가 <b>이름만으로</b> 대조했습니다. 결과는 참고용으로만 확인해 주세요.</div></div>`;
+  }
+
+  // full roster (collapsible)
+  html+=renderFullTable(p,v);
+
+  html+='</div>';
+  el.innerHTML=html;
+  return {el, counts:c};
+}
+
+function matchedSubjectName(p){
+  const hit=INDEX.assessments.find(a=>a.normSubj===p.normSubj);
+  return hit?hit.subj:(p.subjectRaw||'');
+}
+
+function renderFullTable(p,v){
+  // map student -> row of statuses
+  const byStudent=new Map();
+  for(const x of v.rows){
+    if(!byStudent.has(x.st)) byStudent.set(x.st,[]);
+    byStudent.get(x.st).push(x);
+  }
+  let head=`<th>반/번호</th><th>성명</th>`;
+  for(const c of p.cols) head+=`<th>${esc(c.name)}</th>`;
+  let body='';
+  for(const [st,cells] of byStudent){
+    let tds=`<td class="num" style="color:var(--faint)">${esc(st.banbun)}</td><td class="who"><span class="nm">${esc(st.name)}</span></td>`;
+    for(const x of cells){
+      let dotCls='absent', txt='–';
+      if(x.status==='ok'){dotCls='ok'; txt=fmtNum(x.value);}
+      else if(x.status==='bad'){dotCls='bad'; txt=fmtNum(x.value);}
+      else if(x.status==='unverifiable'){dotCls='unv'; txt=fmtNum(x.value);}
+      else { txt=(x.kind==='text'?esc(x.value):'–'); }
+      const strong = x.status==='bad'?'font-weight:800;color:var(--bad)':'';
+      tds+=`<td class="num" style="${strong}"><span class="dot ${dotCls}"></span>${txt}</td>`;
+    }
+    body+=`<tr>${tds}</tr>`;
+  }
+  return `<details class="full"><summary><svg class="tw" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>전체 명단 보기 (${p.students.length}명)
+    <span style="margin-left:auto;font-weight:500;color:var(--faint);font-size:11.5px">
+      <span class="dot ok"></span>정상 <span class="dot bad" style="margin-left:8px"></span>불가능 <span class="dot unv" style="margin-left:8px"></span>확인필요 <span class="dot absent" style="margin-left:8px"></span>미응시</span>
+    </summary>
+    <div class="inner"><table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div></details>`;
+}
+
+/* ---------- file handling ---------- */
+function readWorkbook(file){
+  return new Promise((resolve,reject)=>{
+    const reader=new FileReader();
+    reader.onerror=()=>reject(new Error('파일을 읽지 못했습니다.'));
+    reader.onload=e=>{
+      try{
+        const name=file.name.toLowerCase();
+        let wb;
+        if(name.endsWith('.csv')){
+          wb=XLSX.read(new TextDecoder('utf-8').decode(new Uint8Array(e.target.result)),{type:'string'});
+        } else {
+          wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
+        }
+        resolve(wb);
+      }catch(err){ reject(err); }
+    };
+    reader.readAsArrayBuffer(file);
+  });
+}
+function firstSheetAoa(wb){
+  // prefer a sheet with data; default to first
+  const ws=wb.Sheets[wb.SheetNames[0]];
+  return XLSX.utils.sheet_to_json(ws,{header:1, raw:true, defval:null, blankrows:true});
+}
+
+async function handleRosterFiles(files){
+  for(const f of files){
+    try{
+      const wb=await readWorkbook(f);
+      const aoa=firstSheetAoa(wb);
+      const entry={name:f.name, aoa};
+      loadedRosters.push(entry);
+      logVerification(buildRecord(entry));   // 검증 이벤트 1건 기록(과목명·결과만)
+    }catch(err){
+      loadedRosters.push({name:f.name, aoa:[['__ERR__']], _err:err.message});
+    }
+  }
+  renderAll();
+  $('#results').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+async function handleDbFile(file){
+  try{
+    const wb=await readWorkbook(file);
+    const aoa=firstSheetAoa(wb);
+    const db=parseDbAoa(aoa, file.name);
+    if(db.error){ alert('배점 기준 파일을 해석하지 못했습니다.\n'+db.error); return; }
+    DB=db; INDEX=buildIndex(DB);
+    refreshDbStatus(); renderDbView();
+    renderAll(); // re-validate loaded rosters against new DB
+  }catch(err){ alert('배점 기준 파일을 읽지 못했습니다.\n'+err.message); }
+}
+
+function parseDbAoa(aoa, fname){
+  // find header row containing 과목명/수행평가명/평가요소/배점
+  let hi=-1, idx={};
+  for(let i=0;i<Math.min(aoa.length,30);i++){
+    const row=aoa[i].map(c=>String(c===null||c===undefined?'':c).trim());
+    const find=key=>row.findIndex(c=>c.replace(/\s+/g,'')===key || c.includes(key));
+    const cSub=find('과목명'), cPa=find('수행평가명'), cEl=find('평가요소');
+    const cPt=row.findIndex(c=>c.includes('배점'));
+    if(cSub>=0&&cPa>=0&&cEl>=0&&cPt>=0){ hi=i; idx={cSub,cPa,cEl,cPt}; break; }
+  }
+  if(hi<0) return {error:"머리글(과목명 · 수행평가명 · 평가요소 · 배점) 행을 찾지 못했습니다."};
+  const subjects={};
+  for(let i=hi+1;i<aoa.length;i++){
+    const row=aoa[i]; if(!row) continue;
+    const subj=String(row[idx.cSub]===null||row[idx.cSub]===undefined?'':row[idx.cSub]).trim();
+    const pa=String(row[idx.cPa]===null||row[idx.cPa]===undefined?'':row[idx.cPa]).trim();
+    const el=String(row[idx.cEl]===null||row[idx.cEl]===undefined?'':row[idx.cEl]).trim();
+    const ptn=Number(row[idx.cPt]);
+    if(!subj||!pa||!el||!Number.isFinite(ptn)) continue;
+    subjects[subj]=subjects[subj]||{}; subjects[subj][pa]=subjects[subj][pa]||{}; subjects[subj][pa][el]=subjects[subj][pa][el]||[];
+    if(!subjects[subj][pa][el].includes(ptn)) subjects[subj][pa][el].push(ptn);
+  }
+  if(Object.keys(subjects).length===0) return {error:"데이터 행을 찾지 못했습니다."};
+  return {version:'교체됨 · '+new Date().toISOString().slice(0,10), source:fname, subjects};
+}
+
+/* ---------- export ---------- */
+function exportCsv(){
+  const headers=['파일','반/번호','학번','성명','과목','수행평가','기록된 점수','가능 범위(최소~최대)','가장 가까운 가능 점수','사유'];
+  const lines=[headers.join(',')];
+  let any=false;
+  for(const r of loadedRosters){
+    const p=parseRoster(r.aoa); if(p.error) continue;
+    const v=validateRoster(p);
+    for(const x of v.rows.filter(z=>z.status==='bad')){
+      any=true;
+      const a=x.a;
+      const row=[r.name, x.st.banbun, x.st.sabun, x.st.name, a.subj, x.col.name, x.value, `${a.min}~${a.max}`, nearest(a.sorted,x.value), '배점 조합으로 만들 수 없는 점수'];
+      lines.push(row.map(csvCell).join(','));
+    }
+  }
+  if(!any){ alert('내려받을 이상 항목이 없습니다.'); return; }
+  const blob=new Blob(['\uFEFF'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download='수행평가_이상점수_'+new Date().toISOString().slice(0,10)+'.csv';
+  document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+}
+function csvCell(v){ const s=String(v===null||v===undefined?'':v); return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; }
+
+/* ============================================================
+   활용 기록(검증 로그)
+   ============================================================ */
+function classifyResult(c){
+  if((c.ok + c.bad) === 0) return '확인필요';   // 검증 가능한 점수가 없었음
+  if(c.bad > 0) return '불일치';                // 불가능 점수 발견
+  return '일치';                                 // 모두 정상
+}
+function buildRecord(entry){
+  const p=parseRoster(entry.aoa);
+  if(p.error) return null;
+  const v=validateRoster(p); const c=v.counts;
+  const subject = v.subjectKnown ? matchedSubjectName(p) : (p.subjectRaw||'(미상)');
+  const rec={
+    ts:new Date().toISOString(), subject, subjectKnown:v.subjectKnown,
+    result:classifyResult(c), checked:c.ok+c.bad, ok:c.ok, impossible:c.bad,
+    unverifiable:c.unverifiable, students:p.students.length, format:p.format
+  };
+  if(USAGE_LOG.logFilename) rec.file=entry.name;
+  return rec;
+}
+function logVerification(rec){
+  if(!rec) return;
+  rec._local=true; usageLog.push(rec); pushRemote(rec); updateAdminCount();
+  if(!$('#tab-admin').classList.contains('hide')) renderAdmin();
+}
+function pushRemote(rec){
+  if(!USAGE_LOG.endpoint) return;
+  const payload=Object.assign({action:'log', key:USAGE_LOG.key}, rec);
+  try{
+    fetch(USAGE_LOG.endpoint,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload),keepalive:true})
+      .then(r=>{rec._synced=!!r.ok;}).catch(()=>{rec._synced=false;});
+  }catch(e){ rec._synced=false; }
+}
+function num(x){ const n=Number(x); return Number.isFinite(n)?n:0; }
+function normalizeRemote(o){
+  return {
+    ts:o.ts||o.time||o.timestamp||'',
+    subject:o.subject||o['과목']||'(미상)',
+    subjectKnown:!(o.subjectKnown===false||o.subjectKnown==='false'||o.subjectKnown==='FALSE'||o.subjectKnown==='미매칭'),
+    result:o.result||o['결과']||'',
+    checked:num(o.checked), ok:num(o.ok), impossible:num(o.impossible),
+    unverifiable:num(o.unverifiable), students:num(o.students),
+    format:o.format||'', file:o.file||''
+  };
+}
+function applyRemote(data){
+  const arr=Array.isArray(data)?data:(data.records||[]);
+  usageLog=arr.map(normalizeRemote);
+  setLogBanner('','' ); updateAdminCount(); renderAdmin();
+}
+function fetchRemote(){
+  if(!USAGE_LOG.endpoint){ renderAdmin(); return; }
+  setLogBanner('백엔드에서 기록을 불러오는 중…','');
+  // JSONP: <script> 주입으로 CORS 없이 읽기 (Apps Script 호환)
+  const cb='__usageCb_'+Date.now()+'_'+Math.floor(Math.random()*1e4);
+  const url=USAGE_LOG.endpoint+(USAGE_LOG.endpoint.includes('?')?'&':'?')+'action=list&callback='+cb+(USAGE_LOG.key?('&key='+encodeURIComponent(USAGE_LOG.key)):'');
+  const s=document.createElement('script'); let done=false;
+  const cleanup=()=>{ try{delete window[cb];}catch(e){window[cb]=undefined;} if(s.parentNode) s.parentNode.removeChild(s); };
+  window[cb]=(data)=>{ done=true; try{ applyRemote(data); }catch(e){ setLogBanner('기록 형식을 해석하지 못했습니다: '+e.message,'warn'); renderAdmin(); } finally{ cleanup(); } };
+  s.onerror=()=>{ if(done) return; done=true; cleanup(); setLogBanner('백엔드에서 기록을 불러오지 못했습니다. 백엔드 주소와 배포 권한(액세스: 모든 사용자)을 확인하세요. 아래는 이 세션 기록입니다.','warn'); renderAdmin(); };
+  s.src=url; document.body.appendChild(s);
+  setTimeout(()=>{ if(!done){ done=true; cleanup(); setLogBanner('백엔드 응답이 없습니다(시간 초과). 주소·배포 설정을 확인하세요. 아래는 이 세션 기록입니다.','warn'); renderAdmin(); } }, 10000);
+}
+function setLogBanner(msg,kind){
+  const el=$('#logBanner'); if(!el) return;
+  if(!msg){ el.innerHTML=''; return; }
+  el.innerHTML=`<div class="note ${kind==='warn'?'warn':''}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg><div>${esc(msg)}</div></div>`;
+}
+function fmtTime(iso){ if(!iso) return ''; const d=new Date(iso); if(isNaN(d)) return esc(iso); const p=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`; }
+function updateAdminCount(){ const b=$('#tabAdminCount'); if(!b) return; const n=usageLog.length; if(n>0){ b.textContent=n; b.classList.remove('hide'); } else b.classList.add('hide'); }
+function updateAdminMode(){
+  const connected=!!USAGE_LOG.endpoint;
+  $('#logMode').textContent = connected ? '백엔드 연결됨 · 모든 사용자 기록 집계' : '세션 데모 모드 · 이 브라우저에서만, 새로고침 시 사라짐';
+  $('#logDot').style.background = connected?'var(--ok)':'var(--warn)';
+  $('#logDot').style.boxShadow = '0 0 0 4px '+(connected?'var(--ok-bg)':'var(--warn-bg)');
+}
+function updatePrivacyBadge(){
+  const t=$('#privacyText'); if(!t) return;
+  t.innerHTML = USAGE_LOG.endpoint
+    ? '학생 이름·점수는 <b>전송하지 않습니다</b> · 과목명과 검증 결과만 관리자 기록에 집계됩니다'
+    : '<b>브라우저 안에서만</b>&nbsp;검사합니다 · 어떤 데이터도 서버로 전송·저장하지 않습니다';
+}
+function renderAdmin(){
+  updateAdminMode();
+  const rows=[...usageLog].sort((a,b)=>(a.ts<b.ts?1:(a.ts>b.ts?-1:0)));
+  const total=rows.length;
+  const nMatch=rows.filter(r=>r.result==='일치').length;
+  const nBad=rows.filter(r=>r.result==='불일치').length;
+  const nChk=rows.filter(r=>r.result==='확인필요').length;
+  const subjects=new Set(rows.map(r=>r.subject));
+  $('#logSummary').innerHTML=`
+    <div class="adm-stat brand"><div class="n">${total}</div><div class="l">총 검증</div></div>
+    <div class="adm-stat ok"><div class="n">${nMatch}</div><div class="l">일치</div></div>
+    <div class="adm-stat bad"><div class="n">${nBad}</div><div class="l">불일치</div></div>
+    <div class="adm-stat warn"><div class="n">${nChk}</div><div class="l">확인필요</div></div>
+    <div class="adm-stat"><div class="n">${subjects.size}</div><div class="l">과목 수</div></div>`;
+  // by subject
+  const bySub=new Map();
+  for(const r of rows){ const k=r.subject; if(!bySub.has(k)) bySub.set(k,{n:0,ok:0,bad:0,chk:0,last:''}); const o=bySub.get(k); o.n++; if(r.result==='일치')o.ok++; else if(r.result==='불일치')o.bad++; else o.chk++; if((r.ts||'')>o.last)o.last=r.ts; }
+  if(bySub.size===0){ $('#logBySubject').innerHTML='<div class="empty">아직 기록이 없습니다. 검산 탭에서 일람표를 검증하면 여기에 누적됩니다.</div>'; }
+  else{
+    const subRows=[...bySub.entries()].sort((a,b)=>b[1].n-a[1].n);
+    let h='<div class="tscroll"><table><thead><tr><th>과목</th><th class="num">검증</th><th class="num">일치</th><th class="num">불일치</th><th class="num">확인필요</th><th>마지막 검증</th></tr></thead><tbody>';
+    for(const [sub,o] of subRows){ h+=`<tr><td><b>${esc(sub)}</b></td><td class="num">${o.n}</td><td class="num" style="color:var(--ok)">${o.ok}</td><td class="num" style="color:${o.bad?'var(--bad)':'var(--faint)'}">${o.bad}</td><td class="num" style="color:${o.chk?'var(--warn)':'var(--faint)'}">${o.chk}</td><td class="num" style="color:var(--faint)">${fmtTime(o.last)}</td></tr>`; }
+    h+='</tbody></table></div>'; $('#logBySubject').innerHTML=h;
+  }
+  // recent
+  if(rows.length===0){ $('#logRecords').innerHTML='<div class="empty">기록 없음</div>'; }
+  else{
+    let h='<div class="tscroll"><table><thead><tr><th>시각</th><th>과목</th><th>결과</th><th class="num">점검</th><th class="num">불가능</th><th class="num">확인필요</th>'+(USAGE_LOG.logFilename?'<th>파일</th>':'')+'</tr></thead><tbody>';
+    for(const r of rows.slice(0,300)){
+      const pill = r.result==='일치'?'<span class="res-pill ok">일치</span>':r.result==='불일치'?'<span class="res-pill bad">불일치</span>':'<span class="res-pill warn">확인필요</span>';
+      h+=`<tr><td class="num" style="color:var(--faint)">${fmtTime(r.ts)}</td><td>${esc(r.subject)}${r.subjectKnown===false?' <span class="chip warn" style="font-size:10px">미매칭</span>':''}</td><td>${pill}</td><td class="num">${r.checked??''}</td><td class="num" style="color:${r.impossible?'var(--bad)':'var(--faint)'}">${r.impossible??0}</td><td class="num" style="color:${r.unverifiable?'var(--warn)':'var(--faint)'}">${r.unverifiable??0}</td>`+(USAGE_LOG.logFilename?`<td style="color:var(--faint)">${esc(r.file||'')}</td>`:'')+`</tr>`;
+    }
+    h+='</tbody></table></div>'; $('#logRecords').innerHTML=h;
+  }
+  if(!USAGE_LOG.endpoint) setLogBanner('데모 모드입니다 — 기록이 이 브라우저 세션에만 쌓이고 새로고침하면 사라집니다. 여러 사용자의 기록을 한곳에 모으려면 백엔드를 연결하세요(함께 제공된 README 참고).', '');
+}
+function exportLogCsv(){
+  if(usageLog.length===0){ alert('내려받을 기록이 없습니다.'); return; }
+  const headers=['시각','과목','과목매칭','결과','점검수','정상','불가능','확인필요','학생수','형식'];
+  if(USAGE_LOG.logFilename) headers.push('파일명');
+  const lines=[headers.join(',')];
+  for(const r of [...usageLog].sort((a,b)=>(a.ts<b.ts?1:-1))){
+    const row=[fmtTime(r.ts), r.subject, r.subjectKnown===false?'미매칭':'매칭', r.result, r.checked??'', r.ok??'', r.impossible??0, r.unverifiable??0, r.students??'', r.format??''];
+    if(USAGE_LOG.logFilename) row.push(r.file||'');
+    lines.push(row.map(csvCell).join(','));
+  }
+  const blob=new Blob(['\uFEFF'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'});
+  const url=URL.createObjectURL(blob); const a=document.createElement('a');
+  a.href=url; a.download='활용기록_'+new Date().toISOString().slice(0,10)+'.csv';
+  document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+}
+function showTab(which){
+  const v=(which==='verify');
+  $('#tab-verify').classList.toggle('hide',!v);
+  $('#tab-admin').classList.toggle('hide',v);
+  $('#tabVerifyBtn').classList.toggle('active',v); $('#tabVerifyBtn').setAttribute('aria-selected',v);
+  $('#tabAdminBtn').classList.toggle('active',!v); $('#tabAdminBtn').setAttribute('aria-selected',!v);
+  if(!v){
+    if(USAGE_LOG.adminPass && !adminUnlocked){ $('#adminGate').style.display=''; $('#adminBody').style.display='none'; setTimeout(()=>{const e=$('#adminPass'); if(e) e.focus();},50); }
+    else { $('#adminGate').style.display='none'; $('#adminBody').style.display=''; if(USAGE_LOG.endpoint) fetchRemote(); else renderAdmin(); }
+  }
+}
+function tryUnlock(){
+  if($('#adminPass').value===USAGE_LOG.adminPass){ adminUnlocked=true; $('#adminGate').style.display='none'; $('#adminBody').style.display=''; if(USAGE_LOG.endpoint) fetchRemote(); else renderAdmin(); }
+  else { $('#adminGateMsg').textContent='암호가 일치하지 않습니다.'; }
+}
+
+/* ---------- wire up ---------- */
+function init(){
+  INDEX=buildIndex(DB);
+  refreshDbStatus(); renderDbView();
+
+  const drop=$('#drop'), fileInput=$('#fileInput');
+  drop.addEventListener('click',e=>{ if(e.target.tagName!=='INPUT') fileInput.click(); });
+  drop.addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' '){e.preventDefault();fileInput.click();} });
+  fileInput.addEventListener('change',e=>{ if(e.target.files.length) handleRosterFiles([...e.target.files]); e.target.value=''; });
+  ['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('over');}));
+  ['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();if(ev==='dragleave'&&drop.contains(e.relatedTarget))return;drop.classList.remove('over');}));
+  drop.addEventListener('drop',e=>{
+    const fs=[...e.dataTransfer.files].filter(f=>/\.(xlsx|xls)$/i.test(f.name));
+    if(fs.length) handleRosterFiles(fs);
+  });
+
+  $('#replaceDbBtn').addEventListener('click',()=>$('#dbFile').click());
+  $('#dbFile').addEventListener('change',e=>{ if(e.target.files[0]) handleDbFile(e.target.files[0]); e.target.value=''; });
+
+  $('#toggleDb').addEventListener('click',()=>{
+    const dv=$('#dbView'); const hidden=dv.classList.toggle('hide');
+    $('#toggleDb').querySelector('svg').style.transform = hidden?'':'rotate(90deg)';
+    $('#toggleDbLbl').textContent = hidden?'등록된 배점 기준 보기':'배점 기준 접기';
+  });
+
+  $('#clearBtn').addEventListener('click',()=>{ loadedRosters.length=0; renderAll(); });
+  $('#exportBtn').addEventListener('click',exportCsv);
+
+  // ----- tabs & 관리자 기록 -----
+  updatePrivacyBadge();
+  updateAdminCount();
+  if(!USAGE_LOG.adminPass) $('#adminGate').style.display='none';
+  $('#tabVerifyBtn').addEventListener('click',()=>showTab('verify'));
+  $('#tabAdminBtn').addEventListener('click',()=>showTab('admin'));
+  $('#logRefreshBtn').addEventListener('click',fetchRemote);
+  $('#logExportBtn').addEventListener('click',exportLogCsv);
+  $('#adminUnlock').addEventListener('click',tryUnlock);
+  $('#adminPass').addEventListener('keydown',e=>{ if(e.key==='Enter') tryUnlock(); });
+}
+
+if(typeof XLSX==='undefined'){
+  window.addEventListener('load',()=>{ if(typeof XLSX==='undefined'){ document.body.insertAdjacentHTML('afterbegin','<div style="max-width:940px;margin:0 auto 16px;padding:12px 16px;background:var(--warn-bg);border:1px solid var(--warn-line);border-radius:10px;font-size:13px">엑셀 해석 라이브러리(SheetJS)를 불러오지 못했습니다. 인터넷 연결을 확인하거나 페이지를 새로고침해 주세요.</div>'); } });
+}
+init();
+</script>
+</body>
+</html>
