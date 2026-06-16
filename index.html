@@ -213,6 +213,37 @@
   .sync-dot.on{background:var(--ok)} .sync-dot.off{background:var(--line-strong)} .sync-dot.err{background:var(--bad)}
   #logBanner:not(:empty){padding:0 20px 14px}
 
+  /* admin sub-tabs */
+  .subtabs{display:inline-flex;gap:3px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:3px;margin-bottom:16px}
+  .subtab{border:none;background:transparent;color:var(--muted);font-weight:600;font-size:13px;padding:7px 13px;border-radius:7px;display:inline-flex;align-items:center;gap:6px;transition:.13s}
+  .subtab:hover{color:var(--ink)}
+  .subtab.active{background:var(--surface);color:var(--brand);box-shadow:0 1px 2px rgba(20,32,43,.08)}
+  .subtab svg{flex:none}
+
+  /* status board */
+  .board-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+  .board-legend{display:flex;gap:14px;font-size:12px;color:var(--muted);flex-wrap:wrap}
+  .board-legend .lg{display:inline-flex;align-items:center;gap:6px}
+  .board-legend .lg b{color:var(--ink);font-variant-numeric:tabular-nums}
+  .lg-dot{width:9px;height:9px;border-radius:50%;display:inline-block}
+  .lg-dot.bad{background:var(--bad)} .lg-dot.warn{background:var(--warn)} .lg-dot.ok{background:var(--ok)}
+  .board{display:flex;flex-direction:column;gap:8px}
+  .board-row{display:flex;align-items:center;gap:13px;border:1px solid var(--line);border-left-width:4px;border-radius:11px;padding:13px 15px;background:var(--surface);transition:.12s}
+  .board-row:hover{background:var(--surface-2)}
+  .board-row.bad{border-left-color:var(--bad);background:linear-gradient(90deg,var(--bad-bg),transparent 60%)}
+  .board-row.warn{border-left-color:var(--warn);background:linear-gradient(90deg,var(--warn-bg),transparent 60%)}
+  .board-row.ok{border-left-color:var(--ok)}
+  .board-main{flex:1;min-width:0}
+  .board-sub{font-weight:700;font-size:15px;word-break:break-all}
+  .board-meta{font-size:12px;color:var(--muted);margin-top:2px;font-variant-numeric:tabular-nums}
+  .board-right{display:flex;align-items:center;gap:10px;flex:none;flex-wrap:wrap;justify-content:flex-end}
+  .status-pill{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700;padding:5px 11px;border-radius:999px;white-space:nowrap}
+  .status-pill svg{flex:none}
+  .status-pill.bad{background:var(--bad-bg);color:var(--bad)}
+  .status-pill.warn{background:var(--warn-bg);color:var(--warn)}
+  .status-pill.ok{background:var(--ok-bg);color:var(--ok)}
+  .board-count{font-size:12px;font-weight:700;color:var(--bad);background:var(--bad-bg);border-radius:7px;padding:3px 9px;white-space:nowrap;font-variant-numeric:tabular-nums}
+
   @media (max-width:640px){
     body{padding:22px 14px 60px}
     h1.title{font-size:25px}
@@ -352,15 +383,30 @@
         <div class="adm-stats" id="logSummary"></div>
       </div></div>
 
-      <!-- by subject -->
-      <div class="section-card panel"><div class="panel-pad">
-        <h4 class="sec-h">과목별 집계</h4>
-        <div id="logBySubject"></div>
+      <!-- sub views -->
+      <div class="subtabs" role="tablist">
+        <button class="subtab active" id="svBoardBtn" role="tab">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+          과목별 현황
+        </button>
+        <button class="subtab" id="svLogBtn" role="tab">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+          검증 기록
+        </button>
+      </div>
+
+      <!-- 과목별 현황 보드 -->
+      <div id="adminViewBoard" class="section-card panel"><div class="panel-pad">
+        <div class="board-head">
+          <h4 class="sec-h" style="margin:0">과목별 일치 / 불일치 현황</h4>
+          <div id="boardSummary" class="board-legend"></div>
+        </div>
+        <div id="boardContent"></div>
       </div></div>
 
-      <!-- recent records -->
-      <div class="section-card panel"><div class="panel-pad">
-        <h4 class="sec-h">최근 검증 기록</h4>
+      <!-- 검증 기록 -->
+      <div id="adminViewLog" class="section-card panel hide"><div class="panel-pad">
+        <h4 class="sec-h">검증 기록 (최근순)</h4>
         <div id="logRecords"></div>
       </div></div>
     </div>
@@ -396,7 +442,7 @@ const loadedRosters = []; // {name, aoa}
 const USAGE_LOG = {
   endpoint: "https://script.google.com/macros/s/AKfycbw5KcblsZwvcWlytdG8SevWDKxer66Kfk2b-11-Og6UY8Zh1LQ-Vi6eRaoMMMHwoYxtIg/exec",        // 예: "https://script.google.com/macros/s/AKfyc.../exec"
   key: "",             // (선택) 관리자 조회 보호용 키 — 백엔드와 동일하게
-  adminPass: "",       // (선택) 관리자 탭 진입 암호 (간단 보호용). 비우면 바로 열림
+  adminPass: "20260616",   // 관리자 탭 진입 암호. 비우면 바로 열림
   logFilename: false   // true 면 파일명도 기록(개인정보 주의). 기본 false
 };
 let usageLog = [];     // 화면 표시용 누적 기록 (세션 + 백엔드에서 불러온 것)
@@ -906,6 +952,10 @@ function normalizeRemote(o){
   };
 }
 function applyRemote(data){
+  if(data && data.ok===false){
+    setLogBanner('백엔드가 오류를 반환했습니다: '+(data.error||'알 수 없음')+(data.error==='unauthorized'?' — index.html의 USAGE_LOG.key 와 백엔드 SCRIPT_KEY 값을 같게 맞추세요.':''),'warn');
+    renderAdmin(); return;
+  }
   const arr=Array.isArray(data)?data:(data.records||[]);
   usageLog=arr.map(normalizeRemote);
   setLogBanner('','' ); updateAdminCount(); renderAdmin();
@@ -956,15 +1006,39 @@ function renderAdmin(){
     <div class="adm-stat bad"><div class="n">${nBad}</div><div class="l">불일치</div></div>
     <div class="adm-stat warn"><div class="n">${nChk}</div><div class="l">확인필요</div></div>
     <div class="adm-stat"><div class="n">${subjects.size}</div><div class="l">과목 수</div></div>`;
-  // by subject
+  // ----- 과목별 현황 보드 -----
   const bySub=new Map();
-  for(const r of rows){ const k=r.subject; if(!bySub.has(k)) bySub.set(k,{n:0,ok:0,bad:0,chk:0,last:''}); const o=bySub.get(k); o.n++; if(r.result==='일치')o.ok++; else if(r.result==='불일치')o.bad++; else o.chk++; if((r.ts||'')>o.last)o.last=r.ts; }
-  if(bySub.size===0){ $('#logBySubject').innerHTML='<div class="empty">아직 기록이 없습니다. 검산 탭에서 일람표를 검증하면 여기에 누적됩니다.</div>'; }
+  for(const r of rows){ const k=r.subject; if(!bySub.has(k)) bySub.set(k,{n:0,ok:0,bad:0,chk:0,last:'',known:r.subjectKnown!==false}); const o=bySub.get(k); o.n++; if(r.result==='일치')o.ok++; else if(r.result==='불일치')o.bad++; else o.chk++; if((r.ts||'')>o.last)o.last=r.ts; if(r.subjectKnown===false)o.known=false; }
+  const items=[...bySub.entries()].map(([sub,o])=>({sub,...o,status:o.bad>0?'bad':(o.chk>0?'warn':'ok')}));
+  const ord={bad:0,warn:1,ok:2};
+  items.sort((a,b)=> ord[a.status]-ord[b.status] || (b.last>a.last?1:(b.last<a.last?-1:0)) || (a.sub<b.sub?-1:1));
+  const nBoardBad=items.filter(i=>i.status==='bad').length, nBoardWarn=items.filter(i=>i.status==='warn').length, nBoardOk=items.filter(i=>i.status==='ok').length;
+  const SVG_X='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6M9 9l6 6"/></svg>';
+  const SVG_OK='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
+  const SVG_WARN='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01"/><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>';
+  $('#boardSummary').innerHTML = items.length ? `
+    <span class="lg"><span class="lg-dot bad"></span>점검 필요 <b>${nBoardBad}</b></span>
+    <span class="lg"><span class="lg-dot warn"></span>확인 필요 <b>${nBoardWarn}</b></span>
+    <span class="lg"><span class="lg-dot ok"></span>이상 없음 <b>${nBoardOk}</b></span>` : '';
+  if(items.length===0){ $('#boardContent').innerHTML='<div class="empty">아직 기록이 없습니다. 검산 탭에서 일람표를 검증하면 과목별 현황이 여기에 표시됩니다.</div>'; }
   else{
-    const subRows=[...bySub.entries()].sort((a,b)=>b[1].n-a[1].n);
-    let h='<div class="tscroll"><table><thead><tr><th>과목</th><th class="num">검증</th><th class="num">일치</th><th class="num">불일치</th><th class="num">확인필요</th><th>마지막 검증</th></tr></thead><tbody>';
-    for(const [sub,o] of subRows){ h+=`<tr><td><b>${esc(sub)}</b></td><td class="num">${o.n}</td><td class="num" style="color:var(--ok)">${o.ok}</td><td class="num" style="color:${o.bad?'var(--bad)':'var(--faint)'}">${o.bad}</td><td class="num" style="color:${o.chk?'var(--warn)':'var(--faint)'}">${o.chk}</td><td class="num" style="color:var(--faint)">${fmtTime(o.last)}</td></tr>`; }
-    h+='</tbody></table></div>'; $('#logBySubject').innerHTML=h;
+    let h='<div class="board">';
+    for(const it of items){
+      const pill = it.status==='bad' ? `<span class="status-pill bad">${SVG_X}점검 필요</span>`
+                 : it.status==='warn' ? `<span class="status-pill warn">${SVG_WARN}확인 필요</span>`
+                 : `<span class="status-pill ok">${SVG_OK}이상 없음</span>`;
+      const cnt = it.bad>0 ? `<span class="board-count">불일치 ${it.bad}건</span>` : '';
+      const knownTag = it.known===false ? ' <span class="chip warn" style="font-size:10px;vertical-align:middle">미매칭</span>' : '';
+      h+=`<div class="board-row ${it.status}">
+        <div class="board-main">
+          <div class="board-sub">${esc(it.sub)}${knownTag}</div>
+          <div class="board-meta">검증 ${it.n}회 · 마지막 ${fmtTime(it.last)||'–'}</div>
+        </div>
+        <div class="board-right">${cnt}${pill}</div>
+      </div>`;
+    }
+    h+='</div>';
+    $('#boardContent').innerHTML=h;
   }
   // recent
   if(rows.length===0){ $('#logRecords').innerHTML='<div class="empty">기록 없음</div>'; }
@@ -992,6 +1066,13 @@ function exportLogCsv(){
   const url=URL.createObjectURL(blob); const a=document.createElement('a');
   a.href=url; a.download='활용기록_'+new Date().toISOString().slice(0,10)+'.csv';
   document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+}
+function showAdminView(which){
+  const board=(which==='board');
+  $('#adminViewBoard').classList.toggle('hide',!board);
+  $('#adminViewLog').classList.toggle('hide',board);
+  $('#svBoardBtn').classList.toggle('active',board);
+  $('#svLogBtn').classList.toggle('active',!board);
 }
 function showTab(which){
   const v=(which==='verify');
@@ -1047,6 +1128,8 @@ function init(){
   $('#logExportBtn').addEventListener('click',exportLogCsv);
   $('#adminUnlock').addEventListener('click',tryUnlock);
   $('#adminPass').addEventListener('keydown',e=>{ if(e.key==='Enter') tryUnlock(); });
+  $('#svBoardBtn').addEventListener('click',()=>showAdminView('board'));
+  $('#svLogBtn').addEventListener('click',()=>showAdminView('log'));
 }
 
 if(typeof XLSX==='undefined'){
